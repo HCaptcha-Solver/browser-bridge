@@ -19,3 +19,6 @@ coverage/
 playwright-report/
 *.log
 *.map
+
+artifacts/
+.release/
