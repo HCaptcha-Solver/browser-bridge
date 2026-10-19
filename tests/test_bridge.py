@@ -139,7 +139,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond({"accepted": True})
         self.server.calls.append(body)
         assert self.path == "/v2/solutions"
-        assert set(body) == {
+        assert set(body) - {"frames"} == {
             "protocol",
             "question",
             "challenge_id",
@@ -149,6 +149,8 @@ class Handler(BaseHTTPRequestHandler):
             "tiles",
         }
         assert len(body["references"]) == 1
+        if self.server.mode.startswith("animated"):
+            assert 1 <= len(body["frames"]) <= 5
         if self.server.mode == "stale" and len(self.server.calls) == 1:
             time.sleep(0.8)
         if body["tiles"]:
@@ -225,6 +227,8 @@ async def page(server):
         ("grid_all", 0.8, 1),
         ("auto", 0.75, 3),
         ("no_visual", 1, 0),
+        ("animated", 1, 1),
+        ("animated", .75, 1),
     ],
 )
 async def test_real_chrome_full_flow(page, server, mode, scale, rounds):
@@ -260,6 +264,19 @@ async def test_change_between_clicks_stops_remaining_actions(page, server):
     with pytest.raises(ChallengeChanged):
         await solver.solve()
     await asyncio.sleep(0.04)
+    state = json.loads(await page.frames[-1].locator("body").get_attribute("data-state"))
+    assert len(state["hits"]) == 1 and state["submissions"] == 0
+
+
+@pytest.mark.parametrize("mode", ["animated_change", "animated_reference"])
+async def test_animation_never_hides_new_scene_or_reference(page, server, mode):
+    server.mode = mode
+    url = f"http://127.0.0.1:{server.server_port}"
+    await page.goto(url)
+    solver = HCaptchaSolver(page, "fixture", api_url=url, timeout=25)
+    with pytest.raises(ChallengeChanged):
+        await solver.solve()
+    await asyncio.sleep(.04)
     state = json.loads(await page.frames[-1].locator("body").get_attribute("data-state"))
     assert len(state["hits"]) == 1 and state["submissions"] == 0
 

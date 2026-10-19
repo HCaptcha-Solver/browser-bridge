@@ -136,6 +136,8 @@ for (const [mode, scale, rounds] of [
   ["grid_all", 0.8, 1],
   ["auto", 0.75, 3],
   ["no_visual", 1, 0],
+  ["animated", 1, 1],
+  ["animated", .75, 1],
 ]) {
   test(`real Chrome: ${mode}, scale ${scale}`, async (t) => {
     const { server, page, solver } = await browserFixture(t, mode, scale);
@@ -178,6 +180,17 @@ test("stop remaining clicks when the challenge changes", async (t) => {
   assert.equal(state.hits.length, 1);
   assert.equal(state.submissions, 0);
 });
+for (const mode of ["animated_change", "animated_reference"]) {
+  test(`animation still stops on ${mode}`, async t => {
+    const {page, solver, server} = await browserFixture(t, mode);
+    await assert.rejects(solver.solve(), ChallengeChanged);
+    assert.ok(server.calls[0].frames.length > 0 && server.calls[0].frames.length <= 5);
+    await sleep(40);
+    const state = JSON.parse(await page.frames().at(-1).locator("body").getAttribute("data-state"));
+    assert.equal(state.hits.length, 1);
+    assert.equal(state.submissions, 0);
+  });
+}
 test("round and overall timeout budgets", async (t) => {
   const { page, server } = await browserFixture(t);
   const solver = new HCaptchaSolver(page, "fixture", {

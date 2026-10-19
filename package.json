@@ -1,6 +1,6 @@
 {
   "name": "@hcaptcha-solver/browser-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HCaptcha Solver client for Python and Node.js automation",
   "type": "module",
   "engines": {

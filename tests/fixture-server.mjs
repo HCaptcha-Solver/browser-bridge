@@ -29,7 +29,7 @@ export async function fixtureServer(mode = "flow") {
       assert.equal(req.url, "/v2/solutions");
       state.calls.push(body);
       assert.deepEqual(
-        Object.keys(body).sort(),
+        Object.keys(body).filter(k=>k!=="frames").sort(),
         [
           "protocol",
           "question",
@@ -41,6 +41,7 @@ export async function fixtureServer(mode = "flow") {
         ].sort(),
       );
       assert.equal(body.references.length, 1);
+      if (mode.startsWith("animated")) assert.ok(body.frames.length >= 1 && body.frames.length <= 5);
       if (mode === "stale" && state.calls.length === 1) await sleep(800);
       let action;
       if (body.tiles.length)

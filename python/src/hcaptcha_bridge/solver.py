@@ -1,4 +1,4 @@
-_E='Multiple hCaptcha widgets: pass widget_id to select one';_D='tiles';_C=False;_B=True;_A=None;import asyncio,time;from uuid import uuid4;from.api import API_ORIGIN,ApiClient;from.capture import TOKEN,capture,frame_info,same_pixels;from.errors import BridgeError,ChallengeChanged,NotReady;from.geometry import center,same_layout,to_viewport,validate_action
+_E='Multiple hCaptcha widgets: pass widget_id to select one';_D='tiles';_C=False;_B=True;_A=None;import asyncio,time;from uuid import uuid4;from.api import API_ORIGIN,ApiClient;from.capture import TOKEN,capture,frame_info,same_pixels,temporal_snapshot,static_samples,selected_animation;from.errors import BridgeError,ChallengeChanged,NotReady;from.geometry import center,same_layout,to_viewport,validate_action
 class HCaptchaSolver:
 	def __init__(self,page,api_key,*,max_rounds=6,timeout=90,widget_id=_A,api_url=API_ORIGIN):
 		if type(max_rounds)is not int or not 1<=max_rounds<=20 or not 0<timeout<=300:raise ValueError('Use max_rounds=1..20 and timeout=1..300 seconds')
@@ -30,50 +30,55 @@ class HCaptchaSolver:
 				if B:await B.dispose()
 		if len(A)>1:raise BridgeError(_E)
 		return A[0]if A else _A
-	async def _stable(self,frame):
-		A=_A
-		for C in range(8):
+	async def _stable(self,frame,expected=_A):
+		E='animation';B,C,D=_A,[],0
+		for H in range(16):
 			try:
-				B=await capture(frame)
-				if A and same_layout(A,B)and same_pixels(A,B):return B
-				A=B
-			except NotReady:A=_A
-			await asyncio.sleep(.25)
+				A=await capture(frame);F=B and same_layout(B,A)
+				if expected and expected.get(E)and same_layout(expected,A)and same_pixels(expected,A):
+					if B and same_layout(expected,B)and same_pixels(expected,B):return{**A,E:expected[E]}
+				D=D+1 if F and same_pixels(B,A)else 1;C=(C+[A])[-10:]if F else[A]
+				if D>=4 and static_samples(C):return A
+				G=temporal_snapshot(C)
+				if G:return G
+				B=A
+			except NotReady:B,C,D=_A,[],0
+			await asyncio.sleep(.3)
 	async def _apply(self,plan,snapshot):
-		O='submit';N='grid';M='target';L='source';J='type';E='box';C,F=[],[];G=0;frame=snapshot['frame']
+		O='submit';N='grid';M='target';L='source';J='type';F='box';C,D=[],[];G=0;frame=snapshot['frame']
 		async def P():
 			B='Challenge changed before the remaining actions'
 			try:A=await capture(frame)
 			except NotReady:
 				if not G:raise
 				raise ChallengeChanged(B)from _A
-			if not same_layout(snapshot,A)or not same_pixels(snapshot,A,C,F):
+			if not same_layout(snapshot,A)or not same_pixels(snapshot,A,C,D):
 				if not G:raise NotReady('Challenge changed before the first action')
 				raise ChallengeChanged(B)
 			return A
 		for A in plan.get('indices',plan.get('points',plan.get('moves',[]))):
-			D=await P();G+=1
+			E=await P();G+=1
 			if plan[J]=='drag':
-				H,I=to_viewport(A[L],D[E]);Q,R=to_viewport(A[M],D[E]);await self.page.mouse.move(H,I);await self.page.mouse.down()
+				H,I=to_viewport(A[L],E[F]);Q,R=to_viewport(A[M],E[F]);await self.page.mouse.move(H,I);await self.page.mouse.down()
 				try:
 					for K in range(1,25):await self.page.mouse.move(H+(Q-H)*K/24,I+(R-I)*K/24);await asyncio.sleep(.016)
 				finally:await self.page.mouse.up()
 				C.extend((A[L],A[M]))
 			else:
-				S=center(D[_D][A])if plan[J]==N else A;await self.page.mouse.click(*to_viewport(S,D[E]),delay=60)
-				if plan[J]==N:F.append(snapshot[_D][A])
+				S=center(E[_D][A])if plan[J]==N else A;await self.page.mouse.click(*to_viewport(S,E[F]),delay=60)
+				if plan[J]==N:D.append(snapshot[_D][A])
 				else:C.append(A)
 			await asyncio.sleep(.12)
 		try:B=await capture(frame)
 		except NotReady:return snapshot
 		if not same_layout(snapshot,B):return snapshot
-		if not same_pixels(snapshot,B,C,F):raise ChallengeChanged('Challenge changed before submission')
+		if not same_pixels(snapshot,B,C,D):raise ChallengeChanged('Challenge changed before submission')
 		if not B[O]or B['disabled']:raise BridgeError('The challenge submit button is unavailable')
-		await self.page.mouse.click(*to_viewport(center(B[O]),B[E]),delay=60);return B
+		await self.page.mouse.click(*to_viewport(center(B[O]),B[F]),delay=60);return selected_animation(snapshot,B,C,D)
 	async def solve(self):
-		U='token_issued';T='operations';S='charged_micro_usd';R='visual';L='discarded';K='rounds';C='reason'
+		V='temporal_frames';U='token_issued';T='operations';S='charged_micro_usd';R='visual';M='discarded';L='rounds';C='reason'
 		if self._running:raise BridgeError('This solver is already running')
-		E=ApiClient(self.key,self.api_url);self._running=_B;self._active_widget_id=self.widget_id;M=time.monotonic();I=M+self.timeout;self.stats={K:0,R:_C,S:0,T:[],L:0,C:_A};B=_A;J=_A;A=_A;N=_C
+		E=ApiClient(self.key,self.api_url);self._running=_B;self._active_widget_id=self.widget_id;N=time.monotonic();I=N+self.timeout;self.stats={L:0,R:_C,S:0,T:[],M:0,C:_A};B=_A;J=_A;A=_A;O=_C
 		try:
 			async with asyncio.timeout(self.timeout):
 				while _B:
@@ -83,9 +88,9 @@ class HCaptchaSolver:
 						self.stats[C]=U;return F
 					frame=await self._visible('challenge')
 					if not frame:
-						if not N:
-							O=await self._visible('checkbox')
-							if O:V=O.locator('#checkbox,[role="checkbox"]').first;await V.click(timeout=2000);N=_B
+						if not O:
+							P=await self._visible('checkbox')
+							if P:W=P.locator('#checkbox,[role="checkbox"]').first;await W.click(timeout=2000);O=_B
 						await asyncio.sleep(.3);continue
 					try:snapshot=await self._stable(frame)
 					except NotReady:continue
@@ -97,15 +102,17 @@ class HCaptchaSolver:
 					if B:
 						if same_layout(B,snapshot)and same_pixels(B,snapshot):await asyncio.sleep(.3);continue
 						B,J,A=_A,_A,_A
-					if self.stats[K]>=self.max_rounds:self.stats[C]='max_rounds';return
-					P,W=str(uuid4()),str(uuid4());Q={A:snapshot[A]for A in('question','image','canvases',_D)};Q.update(protocol='1',challenge_id=P,references=snapshot['referenceImages']);self.stats[K]+=1;D=await E.solve(Q,W,I);self.stats[T].append(D.get('id'));self.stats[S]+=D.get('billing',{}).get('charged',0);G=D.get('result')
+					if self.stats[L]>=self.max_rounds:self.stats[C]='max_rounds';return
+					Q,X=str(uuid4()),str(uuid4());K={A:snapshot[A]for A in('question','image','canvases',_D)};K.update(protocol='1',challenge_id=Q,references=snapshot['referenceImages'])
+					if snapshot.get(V):K['frames']=snapshot[V]
+					self.stats[L]+=1;D=await E.solve(K,X,I);self.stats[T].append(D.get('id'));self.stats[S]+=D.get('billing',{}).get('charged',0);G=D.get('result')
 					if D.get('status')!='ready'or D.get('result_expired')or not isinstance(G,dict):raise BridgeError('API request failed or its result expired')
-					if G.get('protocol')!='1'or G.get('challenge_id')!=P or G.get('coordinate_space')!='full_challenge_image_0_1000':raise BridgeError('Discarded an incompatible or mismatched result')
-					plan=validate_action(G.get('action'),snapshot);H=await self._stable(frame)
-					if not H or not same_layout(snapshot,H)or not same_pixels(snapshot,H):self.stats[L]+=1;continue
+					if G.get('protocol')!='1'or G.get('challenge_id')!=Q or G.get('coordinate_space')!='full_challenge_image_0_1000':raise BridgeError('Discarded an incompatible or mismatched result')
+					plan=validate_action(G.get('action'),snapshot);H=await self._stable(frame,snapshot)
+					if not H or not same_layout(snapshot,H)or not same_pixels(snapshot,H):self.stats[M]+=1;continue
 					A=D['id']
 					try:B=await self._apply(plan,H);J=H
-					except NotReady:self.stats[L]+=1;A=_A;continue
+					except NotReady:self.stats[M]+=1;A=_A;continue
 					except ChallengeChanged:
 						F=await self._token()
 						if F:await E.feedback(A,_B,I);self.stats[C]=U;return F
@@ -117,4 +124,4 @@ class HCaptchaSolver:
 		finally:
 			try:await self.page.mouse.up()
 			except Exception:0
-			await E.close();self.stats['elapsed_seconds']=round(time.monotonic()-M,3);self._running=_C
+			await E.close();self.stats['elapsed_seconds']=round(time.monotonic()-N,3);self._running=_C
