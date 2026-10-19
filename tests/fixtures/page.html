@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>Browser Bridge local test</title>
+<style>body{margin:0;background:#fafafa}iframe{border:2px solid #222;display:block}#space{height:900px}#wrapper{margin-left:83px;transform-origin:top left}</style>
+<div id="space"></div><div id="wrapper">
+<iframe title="hCaptcha checkbox" width="300" height="80" src="https://fixture.hcaptcha.com/checkbox#frame=checkbox&id=bridge"></iframe>
+<iframe title="hCaptcha challenge" width="420" height="470" style="display:none" src="https://fixture.hcaptcha.com/challenge#frame=challenge&id=bridge"></iframe>
+</div><textarea id="h-captcha-response-bridge" name="h-captcha-response" hidden></textarea>
+<script>
+const q=new URLSearchParams(location.search),mode=q.get('mode')||'flow';
+document.querySelector('#wrapper').style.transform=`scale(${q.get('scale')||1})`;
+addEventListener('message',e=>{
+ if(e.origin!=='https://fixture.hcaptcha.com')return;
+ if(e.data==='open'){
+   if(mode==='no_visual')document.querySelector('#h-captcha-response-bridge').value='synthetic-token-no-visual';
+   else document.querySelector('iframe[title="hCaptcha challenge"]').style.display='block';
+ }
+ if(e.data==='done')document.querySelector('#h-captcha-response-bridge').value='synthetic-token-test-only';
+});
+</script>
